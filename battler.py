@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+# battler.py
 # Contains the main driver and components for running the autobattler
 # IMPORTS
 import sys
@@ -76,6 +77,14 @@ class Engine:
 		Dir.RIGHT: (1, 0)
 	}
 
+	#class Printer:
+		# Handles the UI print calls by putting wrappers where needed
+		# Includes two subsystems:
+		#   A visualization of the battlefield,
+		#   A status bar showing statistical output
+		# Uses calls to urwid to handle the screen updates
+		# 
+
 	def __init__(self):
 		logmsg("*   Initializing game engine") # DEBUG
 		self.SetToState(Engine.Mode.STARTUP)
@@ -104,6 +113,82 @@ class Engine:
 			os.mkfifo(self.p1Controller)
 		if not os.path.exists(self.p2Controller):
 			os.mkfifo(self.p2Controller)
+
+	def New_DisplayBattle(self):
+		# Better method using python curses to do a crude animation
+		import curses
+		screen = curses.initscr()
+		screen.addstr(0, 0, "my test string")
+		# Start the indices at 1 to leave some padding
+		yIndex = 1
+		xIndex = 2
+		topRuler = ""
+		topBar = ""
+		fieldLine = ""
+		for val in range(WORLDSIDELENGTH):
+			topRuler += str(val)
+		for i in range(len(topRuler)):
+			topBar += '|'
+		# Add the top rulers to the screen
+		screen.addstr(yIndex, xIndex, topRuler)
+		yIndex += 1
+		xIndex = 2
+		screen.addstr(yIndex, xIndex, topBar)
+		yIndex += 1
+		xIndex = 0
+		# Add the battlefield
+		for yVal in reversed(range(WORLDSIDELENGTH)):
+			#print(str(yVal) + '-', end='')
+			fieldLine += str(yVal) + '-'
+			for xVal in range(WORLDSIDELENGTH):
+				if self.IsOccupied((xVal, yVal)):
+					unit = Engine.GetIDAt(xVal, yVal)
+					thisController = self.GetControllerOf(unit)
+					match thisController:
+						case self.p1Controller:
+							#print(Fore.BLUE + '@' + Style.RESET_ALL, end='')
+							fieldLine += '@'
+						case self.p2Controller:
+							#print(Fore.GREEN + '@' + Style.RESET_ALL, end='')
+							fieldLine += '@'
+						case _:
+							#print('@', end='')
+							fieldLine += '@'
+				else:
+					#print('┼', end='')
+					fieldLine += '┼'
+			#print('-' + str(yVal))
+			fieldLine += '-' + str(yVal)
+			screen.addstr(yIndex, xIndex, fieldLine)
+			fieldLine = ""
+			yIndex += 1
+			xIndex = 0
+		# Add the bottom rulers
+		xIndex = 2
+		screen.addstr(yIndex, xIndex, topBar)
+		yIndex += 1
+		xIndex = 2
+		screen.addstr(yIndex, xIndex, topRuler)
+		# Add the unit roster
+		# FIXME: put the turncount here
+		for guy in self.ListActors:
+			nextLine = "U-" + str(guy.ID) + "[" + str(guy.HP) + "] :" + str(guy.xPos) + "," + str(guy.yPos) + ":" + str(guy.LastAction.Type)
+			screen.addstr(yIndex, xIndex, nextLine)
+			nextLine = ""
+			yIndex += 1
+			xIndex = 2
+		for corpse in self.ListDead:
+			nextLine = "D-" + str(corpse.ID) + "[" + str(corpse.HP) + "] :" + str(corpse.xPos) + "," + str(corpse.yPos) + ":" + str(corpse.LastAction.Type)
+			screen.addstr(yIndex, xIndex, nextLine)
+			nextLine = ""
+			yIndex += 1
+			xIndex = 2
+		xIndex = 2
+		screen.addstr(yIndex, xIndex, "  id   HP  x, y  ^last action taken")
+		# Need to call .refresh in order to flush the buffer to output
+		screen.refresh()
+		curses.napms(300)
+		curses.endwin()
 
 	def DisplayBattle(self):
 		# Pretty-prints the battlefield to stdout
@@ -139,7 +224,7 @@ class Engine:
 						case _:
 							print('@', end='')
 				else:
-					print('.', end='')
+					print('┼', end='')
 			print('-' + str(yVal))
 		print(topBar)
 		print(topRuler)
@@ -266,7 +351,8 @@ class Engine:
 				self.ListDead.append(target)
 				self.ListActors.remove(target)
 		logmsg("*   Next turn beginning")
-		self.DisplayBattle()
+		#self.DisplayBattle()
+		self.New_DisplayBattle()
 		# FIXME: Use pop() to write each action out to a gameplay record
 		# instead of just wiping the list
 		self.ListActionsThisTurn.clear()
