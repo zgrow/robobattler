@@ -67,6 +67,7 @@ class Engine:
 	StatePrev = Mode.OFFLINE
 	p1Controller = 'fifo_pipeP1'
 	p2Controller = 'fifo_pipeP2'
+	outFileName = 'default_out' # FIXME: unspecified output filenames should be timestamps
 	ListActionsThisTurn = list()
 	ListActors = list()
 	ListDead = list()
@@ -77,28 +78,9 @@ class Engine:
 		Dir.RIGHT: (1, 0)
 	}
 
-	#class Printer:
-		# Handles the UI print calls by putting wrappers where needed
-		# Includes two subsystems:
-		#   A visualization of the battlefield,
-		#   A status bar showing statistical output
-		# Uses calls to urwid to handle the screen updates
-		# 
-
 	def __init__(self):
 		logmsg("*   Initializing game engine") # DEBUG
 		self.SetToState(Engine.Mode.STARTUP)
-
-	def DEBUG_testDirStrings(self): # DEBUG
-		logmsg("*** DEBUG_testDirStrings ***")
-		newStr = hex(Dir.UP.value)[2:]
-		logmsg("*   U: {}".format(newStr))
-		newStr = hex(Dir.DOWN.value)[2:]
-		logmsg("*   D: {}".format(newStr))
-		newStr = hex(Dir.LEFT.value)[2:]
-		logmsg("*   L: {}".format(newStr))
-		newStr = hex(Dir.RIGHT.value)[2:]
-		logmsg("*   R: {}".format(newStr))
 
 	def SetToState(self, newMode):
 		# Helper for setting the engine mode
@@ -326,21 +308,18 @@ class Engine:
 
 	def IterateBattle(self):
 		# Performs a single round of battle
-		# FIXME: set up double-buffer such that
-		#   when all actors have made an action/deferred,
-		#   the new game state is swapped
 		logmsg("*   Iterating again") # DEBUG
 		if self.State == Engine.Mode.SHUTDOWN:
 			logmsg("*!! ERR: Attempting to iterate during shutdown!") # DEBUG
 			return
 		for unit in self.ListActors:
 			logmsg("*   Requesting next action for U-{}".format(unit.ID)) # DEBUG
-			actionVals = self.GetNextActionFor(unit) # 0=type, 1=subject, 2=params
-			nextAction = self.BuildActionFrom(actionVals[0], unit.ID, actionVals[2])
+			actionVals = self.GetNextActionFor(unit)
+			nextAction = self.BuildActionFrom(actionVals[0], unit.ID, actionVals[2]) # 0=type, 1=subject, 2=params
 			unit.LastAction = nextAction
 			self.ListActionsThisTurn.append(nextAction)
-			result = self.ListActionsThisTurn[-1].Do()
-			with open(unit.Controller, "w") as outputPipe:
+			result = self.ListActionsThisTurn[-1].Do() # The action is not removed until recorded
+			with open(unit.Controller, "w") as outputPipe: # Send retval to the controller
 				logmsg("* > {}: returning {}".format(unit.Controller, str(result)))
 				outputPipe.write(str(result))
 		logmsg("*   All units have acted; checking for dead...")
@@ -355,7 +334,9 @@ class Engine:
 		self.New_DisplayBattle()
 		# FIXME: Use pop() to write each action out to a gameplay record
 		# instead of just wiping the list
-		self.ListActionsThisTurn.clear()
+		while len(self.ListActionsThisTurn) > 0:
+			Record(self.ListActionsThisTurn.pop(0))
+		#self.ListActionsThisTurn.clear()
 		self.TurnCur += 1 # *Always* the last action of this method
 
 	def BuildActionFrom(self, actionType, actionUnitID, actionParams):
@@ -381,6 +362,7 @@ class Engine:
 
 	@classmethod
 	def GetControllerOf(self, unitID):
+		# Gets the controller (pipe name) of the specified unit
 		for unit in self.ListActors:
 			if unit.ID == unitID:
 				return unit.Controller
@@ -388,6 +370,7 @@ class Engine:
 
 	@classmethod
 	def GetIDAt(self, xVal, yVal):
+		# Gets the ID of a unit at a given coordinate
 		for unit in self.ListActors:
 			if unit.xPos == xVal and unit.yPos == yVal:
 				return unit.ID
@@ -404,6 +387,7 @@ class Engine:
 
 	@classmethod
 	def SetLocation(self, target, newLocation):
+		# Moves target to specified absolute coordinates
 		for unit in self.ListActors:
 			if unit.ID == target:
 				unit.xPos = newLocation[0]
@@ -414,11 +398,17 @@ class Engine:
 
 	@classmethod
 	def AdjustHP(self, target, offset):
+		# Adjust HP of a single unit by the given offset
 		for unit in self.ListActors:
 			if unit.ID == target:
 				unit.HP += offset
 				return unit.HP
 		return -1
+
+	def Record(self, nextAction):
+		# Writes an action line to the output file
+		#csvwriter.writerow((nextAction.Type, nextAction.Subject, nextAction.params))
+		pass
 
 	def SetupBattle(self, armySize):
 		# Creates the starting units
@@ -429,8 +419,8 @@ class Engine:
 	def GetNextActionFor(self, target):
 		# Requests action values for a given unit
 		# Calls the controller pipe from the specified unit
-		# Start by notifying the player of the waiting unit:
 		logmsg("* > {} -> U-{}".format(target.Controller, target.ID)) # DEBUG
+		# Start by notifying the player of the waiting unit:
 		with open(target.Controller, "w") as outputPipe:
 			outputPipe.write(str(target.ID))
 		# As per API, target controller should respond with a move/spawn req:
