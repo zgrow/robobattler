@@ -28,11 +28,11 @@ def logmsg(*args, **kwargs):
 # CLASSES
 class Actor:
 	# Defines the minimum reqs for an entity in the arena
-	ID = 0x0000 # assigned by the engine
-	Controller = "none" # corr. to the pipe of the player that created it
-	xPos = -1
-	yPos = -1
-	HP = -1
+	ID: int         # assigned by the engine
+	Controller: str # corr. to the pipe of the player that created it
+	xPos: int
+	yPos: int
+	HP: int
 	color = Fore.WHITE # see colorama for defn
 	def __init__(self, newID, newController, newLocation = (-1, -1), newHP = STARTINGHP, newColor = Fore.WHITE):
 		self.ID = newID
@@ -315,7 +315,8 @@ class Engine:
 		for unit in self.ListActors:
 			logmsg("*   Requesting next action for U-{}".format(unit.ID)) # DEBUG
 			actionVals = self.GetNextActionFor(unit)
-			nextAction = self.BuildActionFrom(actionVals[0], unit.ID, actionVals[2]) # 0=type, 1=subject, 2=params
+			# 0=type, 1=subject, 2=params
+			nextAction = self.BuildActionFrom(actionVals[0], unit.ID, actionVals[2])
 			unit.LastAction = nextAction
 			self.ListActionsThisTurn.append(nextAction)
 			result = self.ListActionsThisTurn[-1].Do() # The action is not removed until recorded
@@ -334,12 +335,12 @@ class Engine:
 		self.New_DisplayBattle()
 		# FIXME: Use pop() to write each action out to a gameplay record
 		# instead of just wiping the list
-		while len(self.ListActionsThisTurn) > 0:
-			Record(self.ListActionsThisTurn.pop(0))
-		#self.ListActionsThisTurn.clear()
+		#while len(self.ListActionsThisTurn) > 0:
+			#self.Record(self.ListActionsThisTurn.pop(0))
+		self.ListActionsThisTurn.clear()
 		self.TurnCur += 1 # *Always* the last action of this method
 
-	def BuildActionFrom(self, actionType, actionUnitID, actionParams):
+	def BuildActionFrom(self, actionType, actionUnitID: int, actionParams) -> Action:
 		# Create an Action of the correct type
 		# The class Action has only a Type(ActionType) and a Subject(hex string)
 		logmsg("*   Building action: t:{}, u:{}, p:{}".format(actionType, actionUnitID, actionParams)) # DEBUG
@@ -358,6 +359,7 @@ class Engine:
 				# FIXME: add sanity checking for the spawn location
 				location = (int(actionParams[0]), int(actionParams[1]))
 				newAction = self.SpawnAction(actionUnitID, location)
+		# FIXME: need to make sure there is a Null value of ActionType
 		return newAction
 
 	@classmethod
@@ -431,6 +433,7 @@ class Engine:
 					logmsg("* ! {} closed at other end".format(target.Controller)) # DEBUG
 					break
 			logmsg("*   Parsing new action")
+			# FIXME: is there a null value i can set for the variable 'bytecode'?
 			newValues = BattleParser.ConvertToValues(bytecode)
 			logmsg("*   Values obtained:", newValues) # DEBUG
 		return newValues
